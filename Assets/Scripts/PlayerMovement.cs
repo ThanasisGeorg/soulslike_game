@@ -26,7 +26,6 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private LayerMask whatIsGround;
     [SerializeField] private Transform orientation;
 
-    private bool readyToJump;
     private bool grounded;
     private float horizontalInput;
     private float verticalInput;
@@ -42,16 +41,16 @@ public class PlayerMovement : MonoBehaviour
         rb.freezeRotation = true;
 
         _animator = playerObj.GetComponent<Animator>();
-
-        readyToJump = true;
     }
 
     private void Update()
     {
         PlayerInput();
-        AnimateMovement();
+        
         //SpeedControl();
 
+        Debug.Log("Grounded: " + IsGrounded());
+        // ground check
         if (IsGrounded())
             rb.drag = groundDrag;          
         else
@@ -61,13 +60,13 @@ public class PlayerMovement : MonoBehaviour
     private void FixedUpdate()
     {
         Rotate();
-        Move(); 
+        Run(); 
+        AnimateRunMovement();
     }
- 
-    // ground check
+
     private bool IsGrounded()
     {
-        return grounded = Physics.Raycast(playerObj.position, Vector3.down, (playerHeight / 2) + 0.2f, whatIsGround);
+        return grounded = Physics.Raycast(playerObj.position, Vector3.down, (playerHeight / 2), whatIsGround);
     }
 
     private void PlayerInput()
@@ -78,13 +77,11 @@ public class PlayerMovement : MonoBehaviour
         // when to jump
         if((Gamepad.current.buttonEast.wasPressedThisFrame || Input.GetKeyUp(jumpKey)) && grounded)
         {
-            //readyToJump = false;
             Jump();
-            //Invoke(nameof(ResetJump), jumpCooldown);
         }
     }
 
-    private void Move()
+    private void Run()
     {
         // calculate movement direction
         moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;        
@@ -106,8 +103,8 @@ public class PlayerMovement : MonoBehaviour
         orientation.forward = viewDir; 
 
         // rotate player object
-        horizontalInput = Input.GetAxis("Horizontal");
-        verticalInput = Input.GetAxis("Vertical");
+        //horizontalInput = Input.GetAxis("Horizontal");
+        //verticalInput = Input.GetAxis("Vertical");
         Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
 
         // execute rotation
@@ -125,11 +122,19 @@ public class PlayerMovement : MonoBehaviour
         rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
     }
 
-    private void AnimateMovement()
+    private void AnimateRunMovement()
     {
         float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
         float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
-        _animator.SetFloat("speed", distanceCovered);
+        _animator.SetFloat("speed", speed);
+        
+    }
+
+    private void AnimateJumpMovement()
+    {
+        float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
+        float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
+        _animator.SetFloat("speed", speed);
         
     }
 
@@ -143,10 +148,5 @@ public class PlayerMovement : MonoBehaviour
             Vector3 limitedVel = flatVel.normalized * moveSpeed;
             rb.velocity = new Vector3(limitedVel.x, rb.velocity.y, limitedVel.z);
         }
-    }
-
-    private void ResetJump()
-    {
-        readyToJump = true;
     }
 }

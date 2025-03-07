@@ -51,6 +51,6 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "My 3D project.sln",
+    "dotnet.defaultSolution": "soulslike_game.sln",
     "git.ignoreLimitWarning": true
 }

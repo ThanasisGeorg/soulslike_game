@@ -237,7 +237,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6048376750277521002, guid: 459f79a004eb51144840e79b6950c697, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.793
+      value: -0.816
       objectReference: {fileID: 0}
     - target: {fileID: 6048376750277521002, guid: 459f79a004eb51144840e79b6950c697, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1411,10 +1411,10 @@ MonoBehaviour:
   armature: {fileID: 97863998}
   rotationSpeed: 9
   moveSpeed: 6.5
-  groundDrag: 7.5
-  jumpForce: 4
+  groundDrag: 9.5
+  jumpForce: 6
   jumpCooldown: 0.92
-  airMultiplier: 0
+  airMultiplier: 0.1
   walkSpeed: 0
   sprintSpeed: 0
   jumpKey: 32
