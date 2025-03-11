@@ -40,7 +40,7 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
 
-        _animator = playerObj.GetComponent<Animator>();
+        _animator = armature.GetComponent<Animator>();
     }
 
     private void Update()
@@ -52,9 +52,15 @@ public class PlayerMovement : MonoBehaviour
         Debug.Log("Grounded: " + IsGrounded());
         // ground check
         if (IsGrounded())
+        {
             rb.drag = groundDrag;          
-        else
+            _animator.SetBool("active", false);
+        }
+        else 
+        {
             rb.drag = 0;
+            _animator.SetBool("active", true);
+        }
     }
 
     private void FixedUpdate()
@@ -77,6 +83,7 @@ public class PlayerMovement : MonoBehaviour
         // when to jump
         if((Gamepad.current.buttonEast.wasPressedThisFrame || Input.GetKeyUp(jumpKey)) && grounded)
         {
+            //AnimateJumpMovement();
             Jump();
         }
     }
@@ -132,9 +139,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void AnimateJumpMovement()
     {
-        float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
-        float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
-        _animator.SetFloat("speed", speed);
+        //float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
+        //float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
+        _animator.SetBool("active", true);
         
     }
 
