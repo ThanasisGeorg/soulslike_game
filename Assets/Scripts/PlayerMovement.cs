@@ -6,7 +6,6 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private Transform player;
     [SerializeField] private Transform playerObj;
     [SerializeField] private GameObject playerCam;
-    [SerializeField] private Transform armature;
 
     [SerializeField] private float rotationSpeed;
     [Header("Movement")]
@@ -40,7 +39,7 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
 
-        _animator = armature.GetComponent<Animator>();
+        _animator = playerObj.GetComponentInChildren<Animator>();
     }
 
     private void Update()
@@ -54,12 +53,12 @@ public class PlayerMovement : MonoBehaviour
         if (IsGrounded())
         {
             rb.drag = groundDrag;          
-            _animator.SetBool("active", false);
+            //_animator.SetBool("active", false);
         }
         else 
         {
             rb.drag = 0;
-            _animator.SetBool("active", true);
+            //_animator.SetBool("active", true);
         }
     }
 
