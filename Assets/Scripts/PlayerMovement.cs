@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -26,6 +27,11 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private Transform orientation;
 
     private bool grounded;
+    private bool readyToBackStep = true;
+    private bool readyToRoll = true;
+    private bool readyToAttack = true;
+    private bool readyToBlock = true;
+    private bool isAttacking = false;
     private float horizontalInput;
     private float verticalInput;
     private Vector3 moveDirection;
@@ -53,20 +59,20 @@ public class PlayerMovement : MonoBehaviour
         if (IsGrounded())
         {
             rb.drag = groundDrag;          
-            //_animator.SetBool("active", false);
         }
         else 
         {
             rb.drag = 0;
-            //_animator.SetBool("active", true);
         }
     }
 
     private void FixedUpdate()
     {
-        Rotate();
-        Run(); 
-        AnimateRunMovement();
+        if(!isAttacking)
+        {
+            Rotate();
+            Run(); 
+        }
     }
 
     private bool IsGrounded()
@@ -79,18 +85,37 @@ public class PlayerMovement : MonoBehaviour
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-        // when to jump
-        if((Gamepad.current.buttonEast.wasPressedThisFrame || Input.GetKeyUp(jumpKey)) && grounded)
+        if(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f && Gamepad.current.buttonEast.wasPressedThisFrame && grounded)
         {
-            //AnimateJumpMovement();
-            Jump();
+            Debug.Log("Time to roll");
+            Roll();
+        }
+        else if((Gamepad.current.buttonEast.wasPressedThisFrame || Input.GetKeyUp(jumpKey)) && grounded)
+        {
+            Debug.Log("Time to backstep");
+            //Backstep();
+        }
+        if(Gamepad.current.rightShoulder.wasPressedThisFrame && grounded)
+        {
+            Debug.Log("Time to attack");
+            Attack();
+        }
+        if(Gamepad.current.leftShoulder.isPressed && grounded)
+        {
+            Debug.Log("Time to block");
+            Block();
+        }
+        if(Gamepad.current.leftShoulder.wasReleasedThisFrame)
+        {
+            readyToBlock = false;
+            ResetBlock();
         }
     }
 
     private void Run()
     {
         // calculate movement direction
-        moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;        
+        moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;
 
         // on ground
         if(grounded) 
@@ -100,6 +125,15 @@ public class PlayerMovement : MonoBehaviour
         // in air
         else if(!grounded)
             rb.AddForce(moveDirection * moveSpeed * 10f * airMultiplier, ForceMode.Force);
+
+        AnimateRun();
+    }
+
+    private void AnimateRun()
+    {
+        float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
+        float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
+        _animator.SetFloat("speed", speed);
     }
 
     private void Rotate()
@@ -109,8 +143,6 @@ public class PlayerMovement : MonoBehaviour
         orientation.forward = viewDir; 
 
         // rotate player object
-        //horizontalInput = Input.GetAxis("Horizontal");
-        //verticalInput = Input.GetAxis("Vertical");
         Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
 
         // execute rotation
@@ -120,28 +152,97 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    private void Jump()
+    private void Roll()
     {
-        // reset y velocity
-        rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+        if(!readyToRoll) return;
 
-        rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+        moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;
+
+        AnimateRoll();
+        rb.AddForce(moveDirection * (moveSpeed + 2f) * 10f, ForceMode.Force);
+
+        readyToRoll = false;
+        Invoke(nameof(ResetRoll), 1f);
     }
 
-    private void AnimateRunMovement()
+    private void AnimateRoll()
     {
-        float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
-        float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
-        _animator.SetFloat("speed", speed);
-        
+        _animator.SetBool("readyToRoll", true);  
     }
 
-    private void AnimateJumpMovement()
+    private void ResetRoll()
     {
-        //float distanceCovered = new Vector2(horizontalInput, verticalInput).magnitude;
-        //float speed = Mathf.Lerp(_animator.GetFloat("speed"), distanceCovered, Time.deltaTime * 10f);
-        _animator.SetBool("active", true);
+        readyToRoll = true;
+        _animator.SetBool("readyToRoll", false);  
+    }
+
+    private void Backstep()
+    {
+        if(!readyToBackStep) return;
         
+        AnimateBackstep();
+        Invoke(nameof(ExecuteBackstep), 0.1f);
+
+        readyToBackStep = false;
+        Invoke(nameof(ResetBackStep), 0.3f);
+    }
+
+    private void AnimateBackstep()
+    {
+        _animator.SetBool("readyToBackstep", true);  
+    }   
+
+    private void ExecuteBackstep()
+    {
+        Vector3 backDirection = -player.forward;
+        rb.velocity = Vector3.zero;
+        rb.AddForce(backDirection * 40f, ForceMode.Impulse);
+    }
+
+    private void ResetBackStep()
+    {
+        readyToBackStep = true;
+        _animator.SetBool("readyToBackstep", false);
+    } 
+
+    private void Attack()
+    {
+        if(!readyToAttack) return;
+
+        AnimateAttack();
+
+        Invoke(nameof(ResetAttack), 0.5f);
+    }
+
+    private void AnimateAttack()
+    {
+        isAttacking = true;
+        _animator.SetBool("readyToAttack", true);
+    }
+
+    private void ResetAttack()
+    {
+        isAttacking = false;
+        readyToAttack = true;
+        _animator.SetBool("readyToAttack", false);
+    }
+
+    private void Block()
+    {
+        if(!readyToBlock) return;
+
+        AnimateBlock();
+    }
+
+    private void AnimateBlock()
+    {
+        _animator.SetBool("readyToBlock", true);
+    }
+
+    private void ResetBlock()
+    {
+        readyToBlock = true;
+        _animator.SetBool("readyToBlock", false);
     }
 
     private void SpeedControl()
