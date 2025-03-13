@@ -29,7 +29,7 @@ public class PlayerMovement : MonoBehaviour
     private bool grounded;
     private bool readyToBackStep = true;
     private bool readyToRoll = true;
-    private bool readyToAttack = true;
+    private bool readyToAttack1 = true;
     private bool readyToBlock = true;
     private bool isAttacking = false;
     private float horizontalInput;
@@ -93,7 +93,7 @@ public class PlayerMovement : MonoBehaviour
         else if((Gamepad.current.buttonEast.wasPressedThisFrame || Input.GetKeyUp(jumpKey)) && grounded)
         {
             Debug.Log("Time to backstep");
-            //Backstep();
+            Backstep();
         }
         if(Gamepad.current.rightShoulder.wasPressedThisFrame && grounded)
         {
@@ -207,24 +207,24 @@ public class PlayerMovement : MonoBehaviour
 
     private void Attack()
     {
-        if(!readyToAttack) return;
+        if(!readyToAttack1) return;
 
         AnimateAttack();
 
-        Invoke(nameof(ResetAttack), 0.5f);
+        Invoke(nameof(ResetAttack), 2.2f);
     }
 
     private void AnimateAttack()
     {
         isAttacking = true;
-        _animator.SetBool("readyToAttack", true);
+        _animator.SetBool("readyToAttack1", true);
     }
 
     private void ResetAttack()
     {
         isAttacking = false;
-        readyToAttack = true;
-        _animator.SetBool("readyToAttack", false);
+        readyToAttack1 = true;
+        _animator.SetBool("readyToAttack1", false);
     }
 
     private void Block()
