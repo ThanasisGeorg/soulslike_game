@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
-public class PlayerMovement : MonoBehaviour
+public class PlayerActions : MonoBehaviour
 {
     [SerializeField] private Transform player;
     [SerializeField] private Transform playerObj;
@@ -31,6 +31,7 @@ public class PlayerMovement : MonoBehaviour
     private bool readyToRoll = true;
     private bool readyToAttack1 = true;
     private bool readyToBlock = true;
+    private bool readyToBlockWhileWalking = true;
     private bool isAttacking = false;
     private float horizontalInput;
     private float verticalInput;
@@ -100,6 +101,11 @@ public class PlayerMovement : MonoBehaviour
             Debug.Log("Time to attack");
             Attack();
         }
+        if(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f && Gamepad.current.leftShoulder.isPressed && grounded)
+        {
+            Debug.Log("Time to block while walking");
+            BlockWhileWalking();
+        }
         if(Gamepad.current.leftShoulder.isPressed && grounded)
         {
             Debug.Log("Time to block");
@@ -107,8 +113,11 @@ public class PlayerMovement : MonoBehaviour
         }
         if(Gamepad.current.leftShoulder.wasReleasedThisFrame)
         {
-            readyToBlock = false;
             ResetBlock();
+        }
+        if(!(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f))
+        {
+            ResetBlockWhileWalking();
         }
     }
 
@@ -181,7 +190,7 @@ public class PlayerMovement : MonoBehaviour
         if(!readyToBackStep) return;
         
         AnimateBackstep();
-        Invoke(nameof(ExecuteBackstep), 0.1f);
+        Invoke(nameof(ExecuteBackstep), 0.15f);
 
         readyToBackStep = false;
         Invoke(nameof(ResetBackStep), 0.3f);
@@ -194,7 +203,13 @@ public class PlayerMovement : MonoBehaviour
 
     private void ExecuteBackstep()
     {
-        Vector3 backDirection = -player.forward;
+        // players orientation
+        Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
+        if (inputDir != Vector3.zero) 
+            playerObj.forward = Vector3.Slerp(playerObj.forward, inputDir.normalized, Time.deltaTime * rotationSpeed);
+
+        // get back direction from player's orientation and add force
+        Vector3 backDirection = -playerObj.forward;
         rb.velocity = Vector3.zero;
         rb.AddForce(backDirection * 40f, ForceMode.Impulse);
     }
@@ -210,14 +225,28 @@ public class PlayerMovement : MonoBehaviour
         if(!readyToAttack1) return;
 
         AnimateAttack();
+        Invoke(nameof(ExecuteAttack), 0.5f);
 
         Invoke(nameof(ResetAttack), 2.2f);
     }
 
     private void AnimateAttack()
-    {
+    {        
         isAttacking = true;
         _animator.SetBool("readyToAttack1", true);
+    }
+
+    private void ExecuteAttack()
+    {
+        // players orientation
+        Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
+        if (inputDir != Vector3.zero) 
+            playerObj.forward = Vector3.Slerp(playerObj.forward, inputDir.normalized, Time.deltaTime * rotationSpeed);
+
+        // get front direction from player's orientation and add force
+        Vector3 frontDirection = playerObj.forward;
+
+        rb.AddForce(frontDirection * 30f, ForceMode.Impulse);
     }
 
     private void ResetAttack()
@@ -243,6 +272,19 @@ public class PlayerMovement : MonoBehaviour
     {
         readyToBlock = true;
         _animator.SetBool("readyToBlock", false);
+    }
+
+    private void BlockWhileWalking()
+    {
+        if(!readyToBlockWhileWalking) return;
+
+        _animator.SetBool("readyToBlockWhileWalking", true);
+    }
+
+    private void ResetBlockWhileWalking()
+    {
+        readyToBlockWhileWalking = true;
+        _animator.SetBool("readyToBlockWhileWalking", false);
     }
 
     private void SpeedControl()
