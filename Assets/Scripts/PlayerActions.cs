@@ -1,3 +1,4 @@
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
@@ -44,22 +45,21 @@ public class PlayerActions : MonoBehaviour
     private Vector3 moveDirection;
     private Rigidbody rb;
 
+    private PlayerStatus playerStatus; 
     private Animator _animator;
-    
 
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
 
+        playerStatus = FindObjectOfType<PlayerStatus>();
         _animator = playerObj.GetComponentInChildren<Animator>();
     }
 
     private void Update()
     {
         PlayerInput();
-        
-        //SpeedControl();
 
         Debug.Log("Grounded: " + IsGrounded());
         // ground check
@@ -91,6 +91,7 @@ public class PlayerActions : MonoBehaviour
 
     private void PlayerInput()
     {
+        Debug.Log("Button East value: " + Gamepad.current.buttonEast.ReadValue());
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
@@ -107,6 +108,7 @@ public class PlayerActions : MonoBehaviour
         {
             Debug.Log("Time to backstep");
             Backstep();
+            
         }
         if(Gamepad.current.rightShoulder.wasPressedThisFrame)
         {
@@ -118,7 +120,7 @@ public class PlayerActions : MonoBehaviour
             Debug.Log("Time to block");
             Block();
         }
-        if(!(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f) || Gamepad.current.buttonEast.wasReleasedThisFrame)
+        if(Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.buttonEast.wasReleasedThisFrame)
         {
             ResetSprint();
         }
@@ -126,10 +128,14 @@ public class PlayerActions : MonoBehaviour
         {
             ResetBlock();
         }
-        if(!(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f) || Gamepad.current.leftShoulder.wasReleasedThisFrame)
+        if(Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.leftShoulder.wasReleasedThisFrame)
         {
             ResetBlockWhileWalking();
         }
+        if(playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0) 
+            if(readyToRoll == false || readyToBackStep == false || readyToAttack1 == false)
+                Invoke(nameof(playerStatus.RefillStamina), 1f);
+            else playerStatus.RefillStamina();
     }
 
     private void ButtonEastHandlingWhileMoving()
@@ -146,6 +152,7 @@ public class PlayerActions : MonoBehaviour
             {
                 Debug.Log("Time to roll");
                 Roll();
+                playerStatus.ConsumeStamina(20f);
             }
 
             buttonEastHeld = false;
@@ -153,8 +160,13 @@ public class PlayerActions : MonoBehaviour
 
         if(buttonEastHeld && (Time.time - buttonEastPressTime) >= tapDuration)
         {
-            Debug.Log("Time to sprint");
-            Sprint();
+            if(playerStatus.currentStamina > 0)
+            {
+                Debug.Log("Time to sprint");
+                Sprint();
+                playerStatus.ConsumeStamina(2f);
+            }
+            else ResetSprint();
         }
     }
 
@@ -252,6 +264,8 @@ public class PlayerActions : MonoBehaviour
         
         readyToBackStep = false;
         
+        playerStatus.ConsumeStamina(20f);
+
         AnimateBackstep();
         Invoke(nameof(ExecuteBackstep), 0.15f);
 
@@ -285,6 +299,10 @@ public class PlayerActions : MonoBehaviour
     private void Attack1()
     {
         if(!readyToAttack1) return;
+
+        readyToAttack1 = false;
+        
+        playerStatus.ConsumeStamina(40f);
 
         AnimateAttack1();
         Invoke(nameof(ExecuteAttack1), 0.5f);
