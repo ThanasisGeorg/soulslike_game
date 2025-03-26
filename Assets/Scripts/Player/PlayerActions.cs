@@ -1,16 +1,27 @@
+using System.Linq;
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.UIElements;
+using UnityEngine.UI;
+using UnityEngine.AI;
+using Cinemachine;
 
 public class PlayerActions : MonoBehaviour
 {
-    [SerializeField] private Transform player;
+    [Header("Player")]
+    [SerializeField] private GameObject player;
     [SerializeField] private Transform playerObj;
     [SerializeField] private GameObject playerCam;
+    [SerializeField] private Transform orientation;
+    [SerializeField] private BoxCollider shieldCollider;
+    [SerializeField] private CapsuleCollider swordCollider;
 
-    [SerializeField] private float rotationSpeed;
+    [Header("Bear")]
+    [SerializeField] private Transform bearObj;
+
     [Header("Movement")]
+    [SerializeField] private float rotationSpeed;
     [SerializeField] private float moveSpeed;
     [SerializeField] private float groundDrag;
     [SerializeField] private float jumpForce;
@@ -19,39 +30,58 @@ public class PlayerActions : MonoBehaviour
     [SerializeField] private float walkSpeed;
     [SerializeField] private float sprintSpeed;
 
-    [Header("Keybinds")]
-    [SerializeField] private KeyCode jumpKey = KeyCode.Space;
-
     [Header("Ground Check")]
     [SerializeField] private float playerHeight;
     [SerializeField] private LayerMask ground;
-    [SerializeField] private Transform orientation;
+
+    [Header("Menu")]
+    [SerializeField] private GameObject menu;
+
+    [Header("Cinemachine Camera")]
+    [SerializeField] private GameObject cinemachineCamera;
+
+    [Header("Layers")]
+    [SerializeField] private LayerMask enemy;
 
     private float tapDuration = 0.2f;
+    private bool rbPressedAgain = false;
     private float buttonEastPressTime = 0f;
     private bool buttonEastHeld = false;
     private bool grounded;
     private bool readyToBackStep = true;
     private bool readyToRoll = true;
     private bool readyToAttack1 = true;
-    private bool readyToAttack2 = false;
     private bool readyToBlock = true;
     private bool readyToBlockWhileWalking = true;
     private bool readyToFall = false;
     private bool readyToSprint = true;
     private bool isAttacking = false;
+    private bool menuIsOpen = false;
+    private bool isLocking = false;
     private float horizontalInput;
     private float verticalInput;
     private Vector3 moveDirection;
     private Rigidbody rb;
+    private CinemachineFreeLook cfl;
+    private Transform ct;
 
     private PlayerStatus playerStatus; 
     private Animator _animator;
+
+    private NavMeshAgent m_Agent;
+    private RaycastHit m_HitInfo = new RaycastHit();
 
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
+
+        cfl = cinemachineCamera.GetComponent<CinemachineFreeLook>();
+        ct = cinemachineCamera.GetComponent<Transform>();
+        
+        m_Agent = GetComponent<NavMeshAgent>();
+        
+        menu.SetActive(false);
 
         playerStatus = FindObjectOfType<PlayerStatus>();
         _animator = playerObj.GetComponentInChildren<Animator>();
@@ -66,12 +96,12 @@ public class PlayerActions : MonoBehaviour
         if (IsGrounded())
         {
             rb.drag = groundDrag;   
-            ResetFalling();       
+            //ResetFalling();       
         }
         else 
         {
             rb.drag = 0;
-            AnimateFalling();
+            //AnimateFalling();
         }
     }
 
@@ -79,21 +109,31 @@ public class PlayerActions : MonoBehaviour
     {
         if(!isAttacking || readyToFall)
         {
-            Rotate();
+            if(!isLocking)
+            {
+                Rotate();
+            } 
+            else if(isLocking)
+            {
+                RotateWhenLocking();
+            }
             Run(); 
         }
     }
 
     private bool IsGrounded()
     {
-        return grounded = Physics.Raycast(playerObj.position, Vector3.down, (playerHeight / 2), ground);
+        return grounded = Physics.Raycast(playerObj.position, Vector3.down, playerHeight / 2, ground);
     }
 
     private void PlayerInput()
     {
-        Debug.Log("Button East value: " + Gamepad.current.buttonEast.ReadValue());
+        Debug.Log("Start button value: " + Gamepad.current.startButton.ReadValue());
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
+
+        StartButtonHandling();
+        RightStickButtonHandling();
 
         if(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f && grounded)
         {
@@ -104,16 +144,25 @@ public class PlayerActions : MonoBehaviour
                 BlockWhileWalking();
             }   
         }
-        else if(Gamepad.current.buttonEast.wasPressedThisFrame || Input.GetKeyUp(jumpKey))
+        else if(Gamepad.current.buttonEast.wasPressedThisFrame)
         {
             Debug.Log("Time to backstep");
             Backstep();
-            
         }
         if(Gamepad.current.rightShoulder.wasPressedThisFrame)
         {
             Debug.Log("Time to attack 1");
             Attack1();
+            /*if(!isAttacking)
+            {
+                Attack1();
+            }
+            else if(isAttacking && readyToAttack1 == false)
+            {
+                Debug.Log("RB pressed again");
+                rbPressedAgain = true;
+                DoubleAttackHandling();
+            }*/
         }
         if(Gamepad.current.leftShoulder.isPressed && grounded)
         {
@@ -136,6 +185,36 @@ public class PlayerActions : MonoBehaviour
             if(readyToRoll == false || readyToBackStep == false || readyToAttack1 == false)
                 Invoke(nameof(playerStatus.RefillStamina), 1f);
             else playerStatus.RefillStamina();
+    }
+
+    public void InventoryClicked()
+    {
+        Debug.Log("Inventory clicked");
+    }
+
+    private void StartButtonHandling()
+    {
+        if(Gamepad.current.startButton.wasPressedThisFrame)
+        {  
+            if(!menuIsOpen)
+            {
+                menu.SetActive(true);
+            }
+            else if(menuIsOpen)
+            {
+                menu.SetActive(false);
+            }
+
+            menuIsOpen = !menuIsOpen;
+        }
+    }
+
+    private void RightStickButtonHandling()
+    {
+        if(Gamepad.current.rightStickButton.wasPressedThisFrame)
+        {   
+            isLocking = !isLocking;
+        }
     }
 
     private void ButtonEastHandlingWhileMoving()
@@ -164,7 +243,7 @@ public class PlayerActions : MonoBehaviour
             {
                 Debug.Log("Time to sprint");
                 Sprint();
-                playerStatus.ConsumeStamina(2f);
+                playerStatus.ConsumeStamina(1f);
             }
             else ResetSprint();
         }
@@ -200,8 +279,9 @@ public class PlayerActions : MonoBehaviour
 
         readyToSprint = false;
 
-        moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;
-        rb.AddForce(moveDirection * moveSpeed * 20f, ForceMode.Force);
+        moveSpeed = sprintSpeed;
+        //moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;
+        //rb.AddForce(moveDirection * sprintSpeed, ForceMode.Force);
 
         AnimateSprint();
     }
@@ -213,6 +293,7 @@ public class PlayerActions : MonoBehaviour
 
     private void ResetSprint()
     {
+        moveSpeed = 5;
         readyToSprint = true;
         _animator.SetBool("readyToSprint", true);
     }
@@ -220,7 +301,7 @@ public class PlayerActions : MonoBehaviour
     private void Rotate()
     {
         // rotate orientation
-        Vector3 viewDir = player.position - new Vector3(playerCam.transform.position.x, player.position.y, playerCam.transform.position.z);
+        Vector3 viewDir = player.transform.position - new Vector3(playerCam.transform.position.x, player.transform.position.y, playerCam.transform.position.z);
         orientation.forward = viewDir; 
 
         // rotate player object
@@ -233,16 +314,48 @@ public class PlayerActions : MonoBehaviour
         }
     }
 
+    private void RotateWhenLocking()
+    {
+        Vector3 bearPosition = new(
+            bearObj.position.x, 
+            playerObj.position.y,
+            bearObj.position.z
+        );
+        orientation.forward = -(playerObj.position - bearPosition);
+
+        playerObj.LookAt(bearPosition);
+
+        ct.forward = -(playerObj.position - bearPosition);
+        ct.LookAt(bearPosition);
+    }
+
+    private void DisableColliders()
+    {
+        shieldCollider.enabled = false;
+        swordCollider.enabled = false;
+    }
+
+    private void ResetColliders()
+    {
+        shieldCollider.enabled = true;
+        swordCollider.enabled = true;
+    }
+
     private void Roll()
     {
         if(!readyToRoll) return;
 
         readyToRoll = false;
 
-        moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;
+        moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward + Vector3.up * 3f;
 
         AnimateRoll();
+
+        Invoke(nameof(DisableColliders), 0.1f);
+
         rb.AddForce(moveDirection * (moveSpeed + 2f) * 10f, ForceMode.Force);
+
+        Invoke(nameof(ResetColliders), 0.75f);        
 
         Invoke(nameof(ResetRoll), 1f);
     }
@@ -296,23 +409,34 @@ public class PlayerActions : MonoBehaviour
         _animator.SetBool("readyToBackstep", true);
     } 
 
+    private void DoubleAttackHandling()
+    {
+        if(rbPressedAgain)
+        {
+            Attack2();
+        }
+        else
+        {
+            Invoke(nameof(ResetAttack1), 2.2f);
+        }
+    }
+
     private void Attack1()
     {
-        if(!readyToAttack1) return;
-
         readyToAttack1 = false;
-        
+        isAttacking = true;
+
         playerStatus.ConsumeStamina(40f);
 
         AnimateAttack1();
         Invoke(nameof(ExecuteAttack1), 0.5f);
 
         Invoke(nameof(ResetAttack1), 2.2f);
+        //DoubleAttackHandling();
     }
 
     private void AnimateAttack1()
     {        
-        isAttacking = true;
         _animator.SetBool("readyToAttack1", false);
     }
 
@@ -333,13 +457,12 @@ public class PlayerActions : MonoBehaviour
     {
         isAttacking = false;
         readyToAttack1 = true;
+        rbPressedAgain = false;
         _animator.SetBool("readyToAttack1", true);
     }
 
     private void Attack2()
     {
-        //if(readyToAttack2) return;
-
         AnimateAttack2();
         Invoke(nameof(ExecuteAttack2), 0.5f);
 
@@ -348,7 +471,6 @@ public class PlayerActions : MonoBehaviour
 
     private void AnimateAttack2()
     {        
-        isAttacking = true;
         _animator.SetBool("readyToAttack2", true);
     }
 
@@ -368,8 +490,10 @@ public class PlayerActions : MonoBehaviour
     private void ResetAttack2()
     {
         isAttacking = false;
-        readyToAttack2 = false;
+        readyToAttack1 = true;
+        rbPressedAgain = false;
         _animator.SetBool("readyToAttack2", false);
+        _animator.SetBool("readyToAttack1", true);
     }
 
     private void Block()
