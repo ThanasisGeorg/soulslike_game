@@ -42,11 +42,15 @@ public class PlayerActions : MonoBehaviour
     [SerializeField] private GameObject inventoryPanel;
     [SerializeField] private GameObject settings;
     [SerializeField] private GameObject settingsPanel;
+    [SerializeField] private GameObject youDiedPanel;
 
     [Header("Quit")]
     [SerializeField] private GameObject quitPanel;
     [SerializeField] private GameObject noButton;
     [SerializeField] private GameObject yesButton;
+
+    [Header("Player Input")]
+    [SerializeField] private PlayerInput playerInput;
 
     [Header("Event System")]
     [SerializeField] private EventSystem eventSystem;
@@ -74,6 +78,7 @@ public class PlayerActions : MonoBehaviour
     private bool inventoryIsOpen = false;
     private bool settingsAreOpen = false;
     private bool isLocking = false;
+    private bool timeToDie = false;
     private float horizontalInput;
     private float verticalInput;
     private Vector3 moveDirection;
@@ -101,37 +106,60 @@ public class PlayerActions : MonoBehaviour
         _animator = playerObj.GetComponentInChildren<Animator>();
     }
 
+    private void ReloadGame()
+    {
+        SceneManager.UnloadSceneAsync(2);
+        SceneManager.LoadScene(2);
+    }
+
+    private void ShowYouDied()
+    {
+        youDiedPanel.SetActive(true);
+    }
+
     private void Update()
     {
-        PlayerInput();
-
-        Debug.Log("Grounded: " + IsGrounded());
-        // ground check
-        if (IsGrounded())
+        if(playerStatus.currentHealth <= 0f)
         {
-            rb.drag = groundDrag;   
-            //ResetFalling();       
+            _animator.SetBool("timeToDie", true);
+            timeToDie = true;
+            playerInput.DeactivateInput();
+            Invoke(nameof(ShowYouDied), 1f);
+            Invoke(nameof(ReloadGame), 4f);
         }
-        else 
+        else
         {
-            rb.drag = 0;
-            //AnimateFalling();
+            PlayerInput();
+            
+            Debug.Log("Grounded: " + IsGrounded());
+            // ground check
+            if(IsGrounded())
+            {
+                rb.drag = groundDrag;        
+            }
+            else 
+            {
+                rb.drag = 0;
+            }
         }
     }
 
     private void FixedUpdate()
     {
-        if(!isAttacking || readyToFall)
+        if(timeToDie == false)
         {
-            if(!isLocking)
+            if(!isAttacking)
             {
-                Rotate();
-            } 
-            else if(isLocking)
-            {
-                RotateWhenLocking();
+                if(!isLocking)
+                {
+                    Rotate();
+                } 
+                else if(isLocking)
+                {
+                    RotateWhenLocking();
+                }
+                Run(); 
             }
-            Run(); 
         }
     }
 
@@ -142,7 +170,6 @@ public class PlayerActions : MonoBehaviour
 
     private void PlayerInput()
     {
-        Debug.Log("Start button value: " + Gamepad.current.startButton.ReadValue());
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
@@ -154,7 +181,6 @@ public class PlayerActions : MonoBehaviour
             ButtonEastHandlingWhileMoving();
             if(Gamepad.current.leftShoulder.isPressed)
             {
-                Debug.Log("Time to block while walking");
                 BlockWhileWalking();
             }   
         }
@@ -206,6 +232,10 @@ public class PlayerActions : MonoBehaviour
         if(Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.leftShoulder.wasReleasedThisFrame)
         {
             ResetBlockWhileWalking();
+        }
+        if(Gamepad.current.buttonNorth.wasPressedThisFrame)
+        {
+            playerStatus.TakeDamage(10f);
         }
         if(playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0) 
             if(readyToRoll == false || readyToBackStep == false || readyToAttack1 == false)
