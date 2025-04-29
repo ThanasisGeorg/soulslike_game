@@ -6,6 +6,8 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using UnityEngine.AI;
 using Cinemachine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 public class PlayerActions : MonoBehaviour
 {
@@ -36,6 +38,18 @@ public class PlayerActions : MonoBehaviour
 
     [Header("Menu")]
     [SerializeField] private GameObject menu;
+    [SerializeField] private GameObject inventory;
+    [SerializeField] private GameObject inventoryPanel;
+    [SerializeField] private GameObject settings;
+    [SerializeField] private GameObject settingsPanel;
+
+    [Header("Quit")]
+    [SerializeField] private GameObject quitPanel;
+    [SerializeField] private GameObject noButton;
+    [SerializeField] private GameObject yesButton;
+
+    [Header("Event System")]
+    [SerializeField] private EventSystem eventSystem;
 
     [Header("Cinemachine Camera")]
     [SerializeField] private GameObject cinemachineCamera;
@@ -57,6 +71,8 @@ public class PlayerActions : MonoBehaviour
     private bool readyToSprint = true;
     private bool isAttacking = false;
     private bool menuIsOpen = false;
+    private bool inventoryIsOpen = false;
+    private bool settingsAreOpen = false;
     private bool isLocking = false;
     private float horizontalInput;
     private float verticalInput;
@@ -69,7 +85,7 @@ public class PlayerActions : MonoBehaviour
     private Animator _animator;
 
     private NavMeshAgent m_Agent;
-    private RaycastHit m_HitInfo = new RaycastHit();
+    private RaycastHit m_HitInfo = new();
 
     private void Start()
     {
@@ -80,8 +96,6 @@ public class PlayerActions : MonoBehaviour
         ct = cinemachineCamera.GetComponent<Transform>();
         
         m_Agent = GetComponent<NavMeshAgent>();
-        
-        menu.SetActive(false);
 
         playerStatus = FindObjectOfType<PlayerStatus>();
         _animator = playerObj.GetComponentInChildren<Animator>();
@@ -146,8 +160,20 @@ public class PlayerActions : MonoBehaviour
         }
         else if(Gamepad.current.buttonEast.wasPressedThisFrame)
         {
-            Debug.Log("Time to backstep");
-            Backstep();
+            if(inventoryIsOpen)
+            {
+                inventoryPanel.SetActive(false);
+                inventoryIsOpen = !inventoryIsOpen;
+            }
+            else if(settingsAreOpen)
+            {
+                settingsPanel.SetActive(false);
+                settingsAreOpen = !settingsAreOpen;
+            }
+            else 
+            {
+                Backstep();
+            }
         }
         if(Gamepad.current.rightShoulder.wasPressedThisFrame)
         {
@@ -189,7 +215,37 @@ public class PlayerActions : MonoBehaviour
 
     public void InventoryClicked()
     {
-        Debug.Log("Inventory clicked");
+        menu.SetActive(false);
+        menuIsOpen = !menuIsOpen;
+        inventoryPanel.SetActive(true);
+        inventoryIsOpen = !inventoryIsOpen;
+    }
+
+    public void SettingsClicked()
+    {
+        menu.SetActive(false);
+        menuIsOpen = !menuIsOpen;
+        settingsPanel.SetActive(true);
+        settingsAreOpen = !settingsAreOpen;
+    }
+
+    public void QuitClicked()
+    {
+        menu.SetActive(false);
+        menuIsOpen = !menuIsOpen;
+        quitPanel.SetActive(true);
+        eventSystem.SetSelectedGameObject(noButton);
+    }
+
+    public void YesClicked()
+    {
+        SceneManager.UnloadSceneAsync(2);
+        SceneManager.LoadScene(0);
+    }
+
+    public void NoClicked()
+    {
+        quitPanel.SetActive(false);
     }
 
     private void StartButtonHandling()
@@ -199,6 +255,7 @@ public class PlayerActions : MonoBehaviour
             if(!menuIsOpen)
             {
                 menu.SetActive(true);
+                eventSystem.SetSelectedGameObject(inventory);
             }
             else if(menuIsOpen)
             {
@@ -243,7 +300,7 @@ public class PlayerActions : MonoBehaviour
             {
                 Debug.Log("Time to sprint");
                 Sprint();
-                playerStatus.ConsumeStamina(1f);
+                playerStatus.ConsumeStamina(0.5f);
             }
             else ResetSprint();
         }

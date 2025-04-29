@@ -7,7 +7,6 @@ public class ExitGame : MonoBehaviour
 {
     public void QuitGame()
     {
-        //SceneManager.UnloadSceneAsync(0);
         Application.Quit();
     }
 }
