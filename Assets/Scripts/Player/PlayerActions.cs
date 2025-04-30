@@ -68,12 +68,12 @@ public class PlayerActions : MonoBehaviour
     private bool grounded;
     private bool readyToBackStep = true;
     private bool readyToRoll = true;
-    private bool readyToAttack1 = true;
+    private bool isAttacking = false;
+    private bool readyToCombo = false;
     private bool readyToBlock = true;
     private bool readyToBlockWhileWalking = true;
     private bool readyToFall = false;
     private bool readyToSprint = true;
-    private bool isAttacking = false;
     private bool menuIsOpen = false;
     private bool inventoryIsOpen = false;
     private bool settingsAreOpen = false;
@@ -104,6 +104,8 @@ public class PlayerActions : MonoBehaviour
 
         playerStatus = FindObjectOfType<PlayerStatus>();
         _animator = playerObj.GetComponentInChildren<Animator>();
+        _animator.SetBool("timeToDie", false);
+        timeToDie = false;
     }
 
     private void ReloadGame()
@@ -119,13 +121,13 @@ public class PlayerActions : MonoBehaviour
 
     private void Update()
     {
-        if(playerStatus.currentHealth <= 0f)
+        if(playerStatus.currentHealth == 0)
         {
             _animator.SetBool("timeToDie", true);
             timeToDie = true;
             playerInput.DeactivateInput();
-            Invoke(nameof(ShowYouDied), 1f);
-            Invoke(nameof(ReloadGame), 4f);
+            Invoke(nameof(ShowYouDied), 0.5f);
+            Invoke(nameof(ReloadGame), 3f);
         }
         else
         {
@@ -204,17 +206,15 @@ public class PlayerActions : MonoBehaviour
         if(Gamepad.current.rightShoulder.wasPressedThisFrame)
         {
             Debug.Log("Time to attack 1");
-            Attack1();
-            /*if(!isAttacking)
+            if(!isAttacking)
             {
                 Attack1();
             }
-            else if(isAttacking && readyToAttack1 == false)
+            else if(readyToCombo)
             {
                 Debug.Log("RB pressed again");
                 rbPressedAgain = true;
-                DoubleAttackHandling();
-            }*/
+            }
         }
         if(Gamepad.current.leftShoulder.isPressed && grounded)
         {
@@ -238,7 +238,7 @@ public class PlayerActions : MonoBehaviour
             playerStatus.TakeDamage(10f);
         }
         if(playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0) 
-            if(readyToRoll == false || readyToBackStep == false || readyToAttack1 == false)
+            if(readyToRoll == false || readyToBackStep == false || isAttacking)
                 Invoke(nameof(playerStatus.RefillStamina), 1f);
             else playerStatus.RefillStamina();
     }
@@ -496,21 +496,8 @@ public class PlayerActions : MonoBehaviour
         _animator.SetBool("readyToBackstep", true);
     } 
 
-    private void DoubleAttackHandling()
-    {
-        if(rbPressedAgain)
-        {
-            Attack2();
-        }
-        else
-        {
-            Invoke(nameof(ResetAttack1), 2.2f);
-        }
-    }
-
     private void Attack1()
     {
-        readyToAttack1 = false;
         isAttacking = true;
 
         playerStatus.ConsumeStamina(40f);
@@ -518,8 +505,28 @@ public class PlayerActions : MonoBehaviour
         AnimateAttack1();
         Invoke(nameof(ExecuteAttack1), 0.5f);
 
-        Invoke(nameof(ResetAttack1), 2.2f);
-        //DoubleAttackHandling();
+        Invoke(nameof(EnableCombo), 0.5f);
+    }
+
+    private void EnableCombo()
+    {
+        readyToCombo = true;
+        Invoke(nameof(EndCombo), 0.5f);
+    }
+
+    private void EndCombo()
+    {
+        readyToCombo = false;
+
+        if(rbPressedAgain)
+        {
+            Attack2();
+            Invoke(nameof(ResetAttack2), 0.6f);
+        }
+        else
+        {
+            ResetAttack1();
+        }
     }
 
     private void AnimateAttack1()
@@ -543,13 +550,15 @@ public class PlayerActions : MonoBehaviour
     private void ResetAttack1()
     {
         isAttacking = false;
-        readyToAttack1 = true;
         rbPressedAgain = false;
+        readyToCombo = false;
         _animator.SetBool("readyToAttack1", true);
     }
 
     private void Attack2()
     {
+        playerStatus.ConsumeStamina(40f);
+        
         AnimateAttack2();
         Invoke(nameof(ExecuteAttack2), 0.5f);
 
@@ -577,8 +586,8 @@ public class PlayerActions : MonoBehaviour
     private void ResetAttack2()
     {
         isAttacking = false;
-        readyToAttack1 = true;
         rbPressedAgain = false;
+        readyToCombo = false;
         _animator.SetBool("readyToAttack2", false);
         _animator.SetBool("readyToAttack1", true);
     }
