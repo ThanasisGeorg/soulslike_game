@@ -73,6 +73,7 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 /[Aa]ssets/RPGPP_LT.meta
 /[Aa]ssets/RPGPP_LT/
-/[Aa]ssets/Blink/
+/[Aa]ssets/Blink/Animals/
+/[Aa]ssets/Blink/Animations/
 /[Aa]ssets/DoubleL/
 /[Aa]ssets/Samples/
