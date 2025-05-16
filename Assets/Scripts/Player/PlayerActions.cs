@@ -330,7 +330,7 @@ public class PlayerActions : MonoBehaviour
             {
                 Debug.Log("Time to sprint");
                 Sprint();
-                playerStatus.ConsumeStamina(0.5f);
+                playerStatus.ConsumeStamina(0.2f);
             }
             else ResetSprint();
         }
