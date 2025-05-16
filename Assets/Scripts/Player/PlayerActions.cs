@@ -235,7 +235,7 @@ public class PlayerActions : MonoBehaviour
         }
         if(Gamepad.current.buttonNorth.wasPressedThisFrame)
         {
-            playerStatus.TakeDamage(10f);
+            //playerStatus.TakeDamage(10f);
         }
         if(playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0) 
             if(readyToRoll == false || readyToBackStep == false || isAttacking)
