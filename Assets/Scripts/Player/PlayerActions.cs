@@ -42,11 +42,15 @@ public class PlayerActions : MonoBehaviour
     [SerializeField] private GameObject inventoryPanel;
     [SerializeField] private GameObject settings;
     [SerializeField] private GameObject settingsPanel;
+    [SerializeField] private GameObject youDiedPanel;
 
     [Header("Quit")]
     [SerializeField] private GameObject quitPanel;
     [SerializeField] private GameObject noButton;
     [SerializeField] private GameObject yesButton;
+
+    [Header("Player Input")]
+    [SerializeField] private PlayerInput playerInput;
 
     [Header("Event System")]
     [SerializeField] private EventSystem eventSystem;
@@ -64,16 +68,17 @@ public class PlayerActions : MonoBehaviour
     private bool grounded;
     private bool readyToBackStep = true;
     private bool readyToRoll = true;
-    private bool readyToAttack1 = true;
+    private bool isAttacking = false;
+    private bool readyToCombo = false;
     private bool readyToBlock = true;
     private bool readyToBlockWhileWalking = true;
     private bool readyToFall = false;
     private bool readyToSprint = true;
-    private bool isAttacking = false;
     private bool menuIsOpen = false;
     private bool inventoryIsOpen = false;
     private bool settingsAreOpen = false;
     private bool isLocking = false;
+    private bool timeToDie = false;
     private float horizontalInput;
     private float verticalInput;
     private Vector3 moveDirection;
@@ -99,39 +104,64 @@ public class PlayerActions : MonoBehaviour
 
         playerStatus = FindObjectOfType<PlayerStatus>();
         _animator = playerObj.GetComponentInChildren<Animator>();
+        _animator.SetBool("timeToDie", false);
+        timeToDie = false;
+    }
+
+    private void ReloadGame()
+    {
+        SceneManager.UnloadSceneAsync(2);
+        SceneManager.LoadScene(2);
+    }
+
+    private void ShowYouDied()
+    {
+        youDiedPanel.SetActive(true);
     }
 
     private void Update()
     {
-        PlayerInput();
-
-        Debug.Log("Grounded: " + IsGrounded());
-        // ground check
-        if (IsGrounded())
+        if(playerStatus.currentHealth == 0)
         {
-            rb.drag = groundDrag;   
-            //ResetFalling();       
+            _animator.SetBool("timeToDie", true);
+            timeToDie = true;
+            playerInput.DeactivateInput();
+            Invoke(nameof(ShowYouDied), 0.5f);
+            Invoke(nameof(ReloadGame), 3f);
         }
-        else 
+        else
         {
-            rb.drag = 0;
-            //AnimateFalling();
+            PlayerInput();
+            
+            Debug.Log("Grounded: " + IsGrounded());
+            // ground check
+            if(IsGrounded())
+            {
+                rb.drag = groundDrag;        
+            }
+            else 
+            {
+                rb.drag = 0;
+            }
         }
     }
 
     private void FixedUpdate()
     {
-        if(!isAttacking || readyToFall)
+        if(timeToDie == false)
         {
-            if(!isLocking)
+            if(!isAttacking)
             {
-                Rotate();
-            } 
-            else if(isLocking)
-            {
-                RotateWhenLocking();
+                if(!isLocking)
+                {
+                    Rotate();
+                } 
+                else if(isLocking)
+                {
+                    RotateWhenLocking();
+                }
+                Run(); 
             }
-            Run(); 
         }
     }
 
@@ -142,7 +172,6 @@ public class PlayerActions : MonoBehaviour
 
     private void PlayerInput()
     {
-        Debug.Log("Start button value: " + Gamepad.current.startButton.ReadValue());
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
@@ -154,7 +183,6 @@ public class PlayerActions : MonoBehaviour
             ButtonEastHandlingWhileMoving();
             if(Gamepad.current.leftShoulder.isPressed)
             {
-                Debug.Log("Time to block while walking");
                 BlockWhileWalking();
             }   
         }
@@ -178,17 +206,15 @@ public class PlayerActions : MonoBehaviour
         if(Gamepad.current.rightShoulder.wasPressedThisFrame)
         {
             Debug.Log("Time to attack 1");
-            Attack1();
-            /*if(!isAttacking)
+            if(!isAttacking)
             {
                 Attack1();
             }
-            else if(isAttacking && readyToAttack1 == false)
+            else if(readyToCombo)
             {
                 Debug.Log("RB pressed again");
                 rbPressedAgain = true;
-                DoubleAttackHandling();
-            }*/
+            }
         }
         if(Gamepad.current.leftShoulder.isPressed && grounded)
         {
@@ -207,8 +233,12 @@ public class PlayerActions : MonoBehaviour
         {
             ResetBlockWhileWalking();
         }
+        if(Gamepad.current.buttonNorth.wasPressedThisFrame)
+        {
+            //playerStatus.TakeDamage(10f);
+        }
         if(playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0) 
-            if(readyToRoll == false || readyToBackStep == false || readyToAttack1 == false)
+            if(readyToRoll == false || readyToBackStep == false || isAttacking)
                 Invoke(nameof(playerStatus.RefillStamina), 1f);
             else playerStatus.RefillStamina();
     }
@@ -300,7 +330,7 @@ public class PlayerActions : MonoBehaviour
             {
                 Debug.Log("Time to sprint");
                 Sprint();
-                playerStatus.ConsumeStamina(0.5f);
+                playerStatus.ConsumeStamina(0.2f);
             }
             else ResetSprint();
         }
@@ -466,21 +496,8 @@ public class PlayerActions : MonoBehaviour
         _animator.SetBool("readyToBackstep", true);
     } 
 
-    private void DoubleAttackHandling()
-    {
-        if(rbPressedAgain)
-        {
-            Attack2();
-        }
-        else
-        {
-            Invoke(nameof(ResetAttack1), 2.2f);
-        }
-    }
-
     private void Attack1()
     {
-        readyToAttack1 = false;
         isAttacking = true;
 
         playerStatus.ConsumeStamina(40f);
@@ -488,8 +505,28 @@ public class PlayerActions : MonoBehaviour
         AnimateAttack1();
         Invoke(nameof(ExecuteAttack1), 0.5f);
 
-        Invoke(nameof(ResetAttack1), 2.2f);
-        //DoubleAttackHandling();
+        Invoke(nameof(EnableCombo), 0.5f);
+    }
+
+    private void EnableCombo()
+    {
+        readyToCombo = true;
+        Invoke(nameof(EndCombo), 0.5f);
+    }
+
+    private void EndCombo()
+    {
+        readyToCombo = false;
+
+        if(rbPressedAgain)
+        {
+            Attack2();
+            Invoke(nameof(ResetAttack2), 0.6f);
+        }
+        else
+        {
+            ResetAttack1();
+        }
     }
 
     private void AnimateAttack1()
@@ -513,13 +550,15 @@ public class PlayerActions : MonoBehaviour
     private void ResetAttack1()
     {
         isAttacking = false;
-        readyToAttack1 = true;
         rbPressedAgain = false;
+        readyToCombo = false;
         _animator.SetBool("readyToAttack1", true);
     }
 
     private void Attack2()
     {
+        playerStatus.ConsumeStamina(40f);
+        
         AnimateAttack2();
         Invoke(nameof(ExecuteAttack2), 0.5f);
 
@@ -547,8 +586,8 @@ public class PlayerActions : MonoBehaviour
     private void ResetAttack2()
     {
         isAttacking = false;
-        readyToAttack1 = true;
         rbPressedAgain = false;
+        readyToCombo = false;
         _animator.SetBool("readyToAttack2", false);
         _animator.SetBool("readyToAttack1", true);
     }

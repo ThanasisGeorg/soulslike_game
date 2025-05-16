@@ -8,7 +8,7 @@ public class PlayerStatus : MonoBehaviour
     [Header("Health")]
     [SerializeField] private HealthBar healthBar;
     private float maxHealth = 150f;
-    private float currentHealth;
+    public float currentHealth;
 
     [Header("Stamina")]
     [SerializeField] private StaminaBar staminaBar;
