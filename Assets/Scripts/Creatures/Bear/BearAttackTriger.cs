@@ -4,9 +4,13 @@ using UnityEngine;
 public class AttackTrigger : MonoBehaviour
 {
     [SerializeField] private PlayerStatus playerStatus;
+    [SerializeField] private PlayerActions playerActions;
 
     private void OnCollisionEnter(Collision other)
     {
-        playerStatus.TakeDamage(10f);
+        if (playerActions.IsBlocking() == false)
+        {
+            playerStatus.TakeDamage(2f);
+        }
     }
 }

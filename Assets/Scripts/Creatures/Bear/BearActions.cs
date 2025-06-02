@@ -38,6 +38,7 @@ public class BearActions : MonoBehaviour
     private PlayerStatus playerStatus;
     private BearStatus bearStatus;
     private bool isAttacking = false;
+    private bool isMoving = false;
 
     private void Start()
     {
@@ -75,19 +76,24 @@ public class BearActions : MonoBehaviour
 
         if (distance > stopDistance)
         {
-            if (isAttacking)
+            /*if (isAttacking)
             {
                 ResetAttack();
-            }
+            }*/
             StartRunning();
             SetDestination();
         }
         else
         {
-            m_Agent.ResetPath();
-            StopMoving();
-            Attack();           
-            Invoke(nameof(ResetAttack), 1.5f);
+            if (isMoving)
+            {
+                m_Agent.ResetPath();
+                StopMoving();
+            }
+            else
+            {       
+                Invoke(nameof(Attack), 0.3f);
+            }
         }
     }
 
@@ -99,7 +105,7 @@ public class BearActions : MonoBehaviour
     private void LookAtPlayer()
     {
         Vector3 direction = player.position - transform.position;
-        direction.y = 0f; // Optional: keep only horizontal rotation
+        direction.y = 0f;
         if (direction != Vector3.zero)
         {
             Quaternion lookRotation = Quaternion.LookRotation(direction);
@@ -139,6 +145,7 @@ public class BearActions : MonoBehaviour
 
     private void StartRunning()
     {
+        isMoving = true;
         m_Agent.speed = 4;
         _animator.SetFloat("speed", m_Agent.speed);
         SetDestination();
@@ -146,6 +153,7 @@ public class BearActions : MonoBehaviour
 
     private void StopMoving()
     {
+        isMoving = false;
         m_Agent.speed = 0;
         _animator.SetFloat("speed", m_Agent.speed);
     }
@@ -153,8 +161,7 @@ public class BearActions : MonoBehaviour
     private void Attack()
     {
         isAttacking = true;
-        _animator.SetBool("timeToAttack", true);
-        //Push();
+        _animator.SetTrigger("timeToAttack");
     }
 
     private void Hit()
@@ -165,7 +172,7 @@ public class BearActions : MonoBehaviour
     private void ResetAttack()
     {
         isAttacking = false;
-        _animator.SetBool("timeToAttack", false);
+        _animator.ResetTrigger("timeToAttack");
     }
 
     private void ReadyToFight()
@@ -176,7 +183,7 @@ public class BearActions : MonoBehaviour
     private void ResetFighting()
     {
         _animator.SetBool("readyToFight", false);
-        ResetAttack();
+        //ResetAttack();
         StartRunning();
     }
 
@@ -193,6 +200,4 @@ public class BearActions : MonoBehaviour
         chaseTriggered = false;
         StartWalking();
     }
-
-
 }

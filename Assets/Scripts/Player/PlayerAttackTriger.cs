@@ -13,15 +13,15 @@ public class PlayerAttackTriger : MonoBehaviour
         Debug.Log("Other: " + other.gameObject.name);
         if (other.gameObject.name.Equals("Bear1Obj"))
         {
-            bear1Status.TakeDamage(10f);
+            bear1Status.TakeDamage(20f);
         }
         else if (other.gameObject.name.Equals("Bear2Obj"))
         {
-            bear2Status.TakeDamage(10f);
+            bear2Status.TakeDamage(20f);
         }
         else if (other.gameObject.name.Equals("Bear3Obj"))
         {
-            bear3Status.TakeDamage(10f);
+            bear3Status.TakeDamage(20f);
         }
         else
         {
