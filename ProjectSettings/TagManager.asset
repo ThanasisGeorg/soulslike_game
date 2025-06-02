@@ -6,6 +6,9 @@ TagManager:
   tags:
   - Ground
   - Creature
+  - BearTriggerZone1
+  - BearTriggerZone2
+  - BearTriggerZone3
   layers:
   - Default
   - TransparentFX

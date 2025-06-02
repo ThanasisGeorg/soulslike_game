@@ -18,9 +18,7 @@ public class PlayerActions : MonoBehaviour
     [SerializeField] private Transform orientation;
     [SerializeField] private BoxCollider shieldCollider;
     [SerializeField] private CapsuleCollider swordCollider;
-
-    [Header("Bear")]
-    [SerializeField] private Transform bearObj;
+    [SerializeField] private PlayerLockTrigger playerLockTrigger;
 
     [Header("Movement")]
     [SerializeField] private float rotationSpeed;
@@ -79,6 +77,7 @@ public class PlayerActions : MonoBehaviour
     private bool settingsAreOpen = false;
     private bool isLocking = false;
     private bool timeToDie = false;
+    private bool isBlocking = false;
     private float horizontalInput;
     private float verticalInput;
     private Vector3 moveDirection;
@@ -86,7 +85,7 @@ public class PlayerActions : MonoBehaviour
     private CinemachineFreeLook cfl;
     private Transform ct;
 
-    private PlayerStatus playerStatus; 
+    private PlayerStatus playerStatus;
     private Animator _animator;
 
     private NavMeshAgent m_Agent;
@@ -99,7 +98,7 @@ public class PlayerActions : MonoBehaviour
 
         cfl = cinemachineCamera.GetComponent<CinemachineFreeLook>();
         ct = cinemachineCamera.GetComponent<Transform>();
-        
+
         m_Agent = GetComponent<NavMeshAgent>();
 
         playerStatus = FindObjectOfType<PlayerStatus>();
@@ -121,7 +120,7 @@ public class PlayerActions : MonoBehaviour
 
     private void Update()
     {
-        if(playerStatus.currentHealth == 0)
+        if (playerStatus.currentHealth == 0)
         {
             _animator.SetBool("timeToDie", true);
             timeToDie = true;
@@ -132,14 +131,13 @@ public class PlayerActions : MonoBehaviour
         else
         {
             PlayerInput();
-            
-            Debug.Log("Grounded: " + IsGrounded());
+
             // ground check
-            if(IsGrounded())
+            if (IsGrounded())
             {
-                rb.drag = groundDrag;        
+                rb.drag = groundDrag;
             }
-            else 
+            else
             {
                 rb.drag = 0;
             }
@@ -148,19 +146,19 @@ public class PlayerActions : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if(timeToDie == false)
+        if (timeToDie == false)
         {
-            if(!isAttacking)
+            if (!isAttacking)
             {
-                if(!isLocking)
+                if (!isLocking)
                 {
                     Rotate();
-                } 
-                else if(isLocking)
-                {
-                    RotateWhenLocking();
                 }
-                Run(); 
+                else
+                {
+                    RotateWhenLocking(playerLockTrigger.BearPosition());
+                }
+                Run();
             }
         }
     }
@@ -175,72 +173,158 @@ public class PlayerActions : MonoBehaviour
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-        StartButtonHandling();
-        RightStickButtonHandling();
+        if (Gamepad.current != null)
+        {
+            StartButtonHandling();
+            RightStickButtonHandling();
 
-        if(Gamepad.current.leftStick.ReadValue().magnitude > 0.1f && grounded)
-        {
-            ButtonEastHandlingWhileMoving();
-            if(Gamepad.current.leftShoulder.isPressed)
+            if ((Gamepad.current.leftStick.ReadValue().magnitude > 0.1f || Keyboard.current.wKey.ReadValue() > 0f
+            || Keyboard.current.aKey.ReadValue() > 0f || Keyboard.current.sKey.ReadValue() > 0.1f
+            || Keyboard.current.dKey.ReadValue() > 0f) && grounded)
             {
-                BlockWhileWalking();
-            }   
-        }
-        else if(Gamepad.current.buttonEast.wasPressedThisFrame)
-        {
-            if(inventoryIsOpen)
-            {
-                inventoryPanel.SetActive(false);
-                inventoryIsOpen = !inventoryIsOpen;
+                ButtonEastHandlingWhileMoving();
+                if (Keyboard.current.spaceKey.wasPressedThisFrame)
+                {
+                    Roll();
+                    playerStatus.ConsumeStamina(20f);
+                }
+                if (Keyboard.current.shiftKey.isPressed)
+                {
+                    Sprint();
+                    playerStatus.ConsumeStamina(0.2f);
+                }
+                if (Gamepad.current.leftShoulder.isPressed || Keyboard.current.ctrlKey.isPressed)
+                {
+                    BlockWhileWalking();
+                }
             }
-            else if(settingsAreOpen)
+            else if (Gamepad.current.buttonEast.wasPressedThisFrame || Keyboard.current.spaceKey.wasPressedThisFrame)
             {
-                settingsPanel.SetActive(false);
-                settingsAreOpen = !settingsAreOpen;
+                if (inventoryIsOpen)
+                {
+                    inventoryPanel.SetActive(false);
+                    inventoryIsOpen = !inventoryIsOpen;
+                }
+                else if (settingsAreOpen)
+                {
+                    settingsPanel.SetActive(false);
+                    settingsAreOpen = !settingsAreOpen;
+                }
+                else
+                {
+                    Backstep();
+                }
             }
-            else 
+            if (Gamepad.current.rightShoulder.wasPressedThisFrame || Mouse.current.leftButton.wasPressedThisFrame)
             {
-                Backstep();
+                Debug.Log("Time to attack 1");
+                if (!isAttacking)
+                {
+                    Attack1();
+                }
+                else if (readyToCombo)
+                {
+                    Debug.Log("RB pressed again");
+                    rbPressedAgain = true;
+                }
             }
-        }
-        if(Gamepad.current.rightShoulder.wasPressedThisFrame)
-        {
-            Debug.Log("Time to attack 1");
-            if(!isAttacking)
+            if ((Gamepad.current.leftShoulder.isPressed || Keyboard.current.ctrlKey.isPressed) && grounded)
             {
-                Attack1();
+                Block();
             }
-            else if(readyToCombo)
+            if (Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.buttonEast.wasReleasedThisFrame || Keyboard.current.shiftKey.wasReleasedThisFrame)
             {
-                Debug.Log("RB pressed again");
-                rbPressedAgain = true;
+                ResetSprint();
             }
+            if (Gamepad.current.leftShoulder.wasReleasedThisFrame || Keyboard.current.ctrlKey.wasReleasedThisFrame)
+            {
+                ResetBlock();
+            }
+            if (Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.leftShoulder.wasReleasedThisFrame || Keyboard.current.ctrlKey.wasReleasedThisFrame)
+            {
+                ResetBlockWhileWalking();
+            }
+            if (playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0)
+                if (readyToRoll == false || readyToBackStep == false || isAttacking)
+                    Invoke(nameof(playerStatus.RefillStamina), 1f);
+                else playerStatus.RefillStamina();
         }
-        if(Gamepad.current.leftShoulder.isPressed && grounded)
+        else
         {
-            Debug.Log("Time to block");
-            Block();
+            StartButtonHandling();
+            RightStickButtonHandling();
+
+            if ((Keyboard.current.wKey.ReadValue() > 0f
+            || Keyboard.current.aKey.ReadValue() > 0f  || Keyboard.current.sKey.ReadValue() > 0.1f
+            || Keyboard.current.dKey.ReadValue() > 0f) && grounded)
+            {
+                ButtonEastHandlingWhileMoving();
+                if (Keyboard.current.spaceKey.wasPressedThisFrame)
+                {
+                    Roll();
+                    playerStatus.ConsumeStamina(20f);
+                }
+                if (Keyboard.current.shiftKey.isPressed)
+                {
+                    Sprint();
+                    playerStatus.ConsumeStamina(0.2f);
+                }
+                if (Keyboard.current.ctrlKey.isPressed)
+                    {
+                        BlockWhileWalking();
+                    }
+            }
+            else if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            {
+                if (inventoryIsOpen)
+                {
+                    inventoryPanel.SetActive(false);
+                    inventoryIsOpen = !inventoryIsOpen;
+                }
+                else if (settingsAreOpen)
+                {
+                    settingsPanel.SetActive(false);
+                    settingsAreOpen = !settingsAreOpen;
+                }
+                else
+                {
+                    Backstep();
+                }
+            }
+            if (Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                Debug.Log("Time to attack 1");
+                if (!isAttacking)
+                {
+                    Attack1();
+                }
+                else if (readyToCombo)
+                {
+                    Debug.Log("RB pressed again");
+                    rbPressedAgain = true;
+                }
+            }
+            if (Keyboard.current.ctrlKey.isPressed && grounded)
+            {
+                Block();
+            }
+            if (Keyboard.current.shiftKey.wasReleasedThisFrame)
+            {
+                ResetSprint();
+            }
+            if (Keyboard.current.ctrlKey.wasReleasedThisFrame)
+            {
+                ResetBlock();
+            }
+            if (Keyboard.current.ctrlKey.wasReleasedThisFrame)
+            {
+                ResetBlockWhileWalking();
+            }
+            if (playerStatus.currentStamina < 100f && Keyboard.current.spaceKey.ReadValue() == 0)
+                if (readyToRoll == false || readyToBackStep == false || isAttacking)
+                    Invoke(nameof(playerStatus.RefillStamina), 1f);
+                else playerStatus.RefillStamina();
         }
-        if(Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.buttonEast.wasReleasedThisFrame)
-        {
-            ResetSprint();
-        }
-        if(Gamepad.current.leftShoulder.wasReleasedThisFrame)
-        {
-            ResetBlock();
-        }
-        if(Gamepad.current.leftStick.ReadValue().magnitude == 0 || Gamepad.current.leftShoulder.wasReleasedThisFrame)
-        {
-            ResetBlockWhileWalking();
-        }
-        if(Gamepad.current.buttonNorth.wasPressedThisFrame)
-        {
-            //playerStatus.TakeDamage(10f);
-        }
-        if(playerStatus.currentStamina < 100f && Gamepad.current.buttonEast.ReadValue() == 0) 
-            if(readyToRoll == false || readyToBackStep == false || isAttacking)
-                Invoke(nameof(playerStatus.RefillStamina), 1f);
-            else playerStatus.RefillStamina();
     }
 
     public void InventoryClicked()
@@ -280,14 +364,31 @@ public class PlayerActions : MonoBehaviour
 
     private void StartButtonHandling()
     {
-        if(Gamepad.current.startButton.wasPressedThisFrame)
-        {  
-            if(!menuIsOpen)
+        if (Gamepad.current != null)
+        {
+            if (Gamepad.current.startButton.wasPressedThisFrame || Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                if (!menuIsOpen)
+                {
+                    menu.SetActive(true);
+                    eventSystem.SetSelectedGameObject(inventory);
+                }
+                else if (menuIsOpen)
+                {
+                    menu.SetActive(false);
+                }
+
+                menuIsOpen = !menuIsOpen;
+            }
+        }
+        else if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            if (!menuIsOpen)
             {
                 menu.SetActive(true);
                 eventSystem.SetSelectedGameObject(inventory);
             }
-            else if(menuIsOpen)
+            else if (menuIsOpen)
             {
                 menu.SetActive(false);
             }
@@ -298,41 +399,55 @@ public class PlayerActions : MonoBehaviour
 
     private void RightStickButtonHandling()
     {
-        if(Gamepad.current.rightStickButton.wasPressedThisFrame)
-        {   
-            isLocking = !isLocking;
+        if (Gamepad.current != null)
+        {
+            if (Gamepad.current.rightStickButton.wasPressedThisFrame || Mouse.current.middleButton.wasPressedThisFrame)
+            {
+                if (playerLockTrigger.CanLock() == true)
+                {
+                    isLocking = !isLocking;
+                }
+            }
+        }
+        else if (Mouse.current.middleButton.wasPressedThisFrame)
+        {
+            if (playerLockTrigger.CanLock() == true)
+            {
+                isLocking = !isLocking;
+            }
         }
     }
 
     private void ButtonEastHandlingWhileMoving()
     {
-        if(Gamepad.current.buttonEast.wasPressedThisFrame)
+        if (Gamepad.current != null)
         {
-            buttonEastPressTime = Time.time;
-            buttonEastHeld = true;
-        }
-
-        if(Gamepad.current.buttonEast.wasReleasedThisFrame)
-        {
-            if((Time.time - buttonEastPressTime) < tapDuration)
+            if (Gamepad.current.buttonEast.wasPressedThisFrame)
             {
-                Debug.Log("Time to roll");
-                Roll();
-                playerStatus.ConsumeStamina(20f);
+                buttonEastPressTime = Time.time;
+                buttonEastHeld = true;
             }
 
-            buttonEastHeld = false;
-        }
-
-        if(buttonEastHeld && (Time.time - buttonEastPressTime) >= tapDuration)
-        {
-            if(playerStatus.currentStamina > 0)
+            if (Gamepad.current.buttonEast.wasReleasedThisFrame)
             {
-                Debug.Log("Time to sprint");
-                Sprint();
-                playerStatus.ConsumeStamina(0.2f);
+                if ((Time.time - buttonEastPressTime) < tapDuration)
+                {
+                    Roll();
+                    playerStatus.ConsumeStamina(20f);
+                }
+
+                buttonEastHeld = false;
             }
-            else ResetSprint();
+
+            if (buttonEastHeld && (Time.time - buttonEastPressTime) >= tapDuration)
+            {
+                if (playerStatus.currentStamina > 0)
+                {
+                    Sprint();
+                    playerStatus.ConsumeStamina(0.2f);
+                }
+                else ResetSprint();
+            }
         }
     }
 
@@ -342,12 +457,12 @@ public class PlayerActions : MonoBehaviour
         moveDirection = horizontalInput * orientation.right + verticalInput * orientation.forward;
 
         // on ground
-        if(grounded) 
+        if (grounded)
         {
             rb.AddForce(moveDirection * moveSpeed * 10f, ForceMode.Force);
         }
         // in air
-        else if(!grounded)
+        else if (!grounded)
             rb.AddForce(moveDirection * moveSpeed * 10f * airMultiplier, ForceMode.Force);
 
         AnimateRun();
@@ -362,7 +477,7 @@ public class PlayerActions : MonoBehaviour
 
     private void Sprint()
     {
-        if(!readyToSprint) return;
+        if (!readyToSprint) return;
 
         readyToSprint = false;
 
@@ -389,25 +504,20 @@ public class PlayerActions : MonoBehaviour
     {
         // rotate orientation
         Vector3 viewDir = player.transform.position - new Vector3(playerCam.transform.position.x, player.transform.position.y, playerCam.transform.position.z);
-        orientation.forward = viewDir; 
+        orientation.forward = viewDir;
 
         // rotate player object
         Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
 
         // execute rotation
-        if (inputDir != Vector3.zero) 
+        if (inputDir != Vector3.zero)
         {
             playerObj.forward = Vector3.Slerp(playerObj.forward, inputDir.normalized, Time.deltaTime * rotationSpeed);
         }
     }
 
-    private void RotateWhenLocking()
+    private void RotateWhenLocking(Vector3 bearPosition)
     {
-        Vector3 bearPosition = new(
-            bearObj.position.x, 
-            playerObj.position.y,
-            bearObj.position.z
-        );
         orientation.forward = -(playerObj.position - bearPosition);
 
         playerObj.LookAt(bearPosition);
@@ -430,7 +540,7 @@ public class PlayerActions : MonoBehaviour
 
     private void Roll()
     {
-        if(!readyToRoll) return;
+        if (!readyToRoll) return;
 
         readyToRoll = false;
 
@@ -442,28 +552,28 @@ public class PlayerActions : MonoBehaviour
 
         rb.AddForce(moveDirection * (moveSpeed + 2f) * 10f, ForceMode.Force);
 
-        Invoke(nameof(ResetColliders), 0.75f);        
+        Invoke(nameof(ResetColliders), 0.75f);
 
         Invoke(nameof(ResetRoll), 1f);
     }
 
     private void AnimateRoll()
     {
-        _animator.SetBool("readyToRoll", false);  
+        _animator.SetBool("readyToRoll", false);
     }
 
     private void ResetRoll()
     {
         readyToRoll = true;
-        _animator.SetBool("readyToRoll", true);  
+        _animator.SetBool("readyToRoll", true);
     }
 
     private void Backstep()
     {
-        if(!readyToBackStep) return;
-        
+        if (!readyToBackStep) return;
+
         readyToBackStep = false;
-        
+
         playerStatus.ConsumeStamina(20f);
 
         AnimateBackstep();
@@ -474,14 +584,14 @@ public class PlayerActions : MonoBehaviour
 
     private void AnimateBackstep()
     {
-        _animator.SetBool("readyToBackstep", false);  
-    }   
+        _animator.SetBool("readyToBackstep", false);
+    }
 
     private void ExecuteBackstep()
     {
         // players orientation
         Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
-        if (inputDir != Vector3.zero) 
+        if (inputDir != Vector3.zero)
             playerObj.forward = Vector3.Slerp(playerObj.forward, inputDir.normalized, Time.deltaTime * rotationSpeed);
 
         // get back direction from player's orientation and add force
@@ -494,7 +604,7 @@ public class PlayerActions : MonoBehaviour
     {
         readyToBackStep = true;
         _animator.SetBool("readyToBackstep", true);
-    } 
+    }
 
     private void Attack1()
     {
@@ -504,8 +614,9 @@ public class PlayerActions : MonoBehaviour
 
         AnimateAttack1();
         Invoke(nameof(ExecuteAttack1), 0.5f);
+        Invoke(nameof(ResetAttack1), 1.8f);
 
-        Invoke(nameof(EnableCombo), 0.5f);
+        //Invoke(nameof(EnableCombo), 0.5f);
     }
 
     private void EnableCombo()
@@ -518,7 +629,7 @@ public class PlayerActions : MonoBehaviour
     {
         readyToCombo = false;
 
-        if(rbPressedAgain)
+        if (rbPressedAgain)
         {
             Attack2();
             Invoke(nameof(ResetAttack2), 0.6f);
@@ -530,15 +641,15 @@ public class PlayerActions : MonoBehaviour
     }
 
     private void AnimateAttack1()
-    {        
-        _animator.SetBool("readyToAttack1", false);
+    {
+        _animator.SetTrigger("timeToAttack1");
     }
 
     private void ExecuteAttack1()
     {
         // players orientation
         Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
-        if (inputDir != Vector3.zero) 
+        if (inputDir != Vector3.zero)
             playerObj.forward = Vector3.Slerp(playerObj.forward, inputDir.normalized, Time.deltaTime * rotationSpeed);
 
         // get front direction from player's orientation and add force
@@ -552,13 +663,12 @@ public class PlayerActions : MonoBehaviour
         isAttacking = false;
         rbPressedAgain = false;
         readyToCombo = false;
-        _animator.SetBool("readyToAttack1", true);
     }
 
     private void Attack2()
     {
         playerStatus.ConsumeStamina(40f);
-        
+
         AnimateAttack2();
         Invoke(nameof(ExecuteAttack2), 0.5f);
 
@@ -566,7 +676,7 @@ public class PlayerActions : MonoBehaviour
     }
 
     private void AnimateAttack2()
-    {        
+    {
         _animator.SetBool("readyToAttack2", true);
     }
 
@@ -574,7 +684,7 @@ public class PlayerActions : MonoBehaviour
     {
         // players orientation
         Vector3 inputDir = horizontalInput * orientation.right + verticalInput * orientation.forward;
-        if (inputDir != Vector3.zero) 
+        if (inputDir != Vector3.zero)
             playerObj.forward = Vector3.Slerp(playerObj.forward, inputDir.normalized, Time.deltaTime * rotationSpeed);
 
         // get front direction from player's orientation and add force
@@ -594,7 +704,8 @@ public class PlayerActions : MonoBehaviour
 
     private void Block()
     {
-        if(!readyToBlock) return;
+        if (!readyToBlock) return;
+        isBlocking = true;
 
         AnimateBlock();
     }
@@ -607,12 +718,14 @@ public class PlayerActions : MonoBehaviour
     private void ResetBlock()
     {
         readyToBlock = true;
+        isBlocking = false;
         _animator.SetBool("readyToBlock", true);
     }
 
     private void BlockWhileWalking()
     {
-        if(!readyToBlockWhileWalking) return;
+        if (!readyToBlockWhileWalking) return;
+        isBlocking = true;
 
         _animator.SetBool("readyToBlockWhileWalking", true);
     }
@@ -620,30 +733,14 @@ public class PlayerActions : MonoBehaviour
     private void ResetBlockWhileWalking()
     {
         readyToBlockWhileWalking = true;
+        isBlocking = false;
         _animator.SetBool("readyToBlockWhileWalking", false);
     }
 
-    private void AnimateFalling()
+    public bool IsBlocking()
     {
-        readyToFall = true;
-        _animator.SetBool("readyToFall", true);
+        return isBlocking;
     }
 
-    private void ResetFalling()
-    {
-        readyToFall = false;
-        _animator.SetBool("readyToFall", false);
-    }
-
-    private void SpeedControl()
-    {
-        Vector3 flatVel = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
-
-        // limit velocity if needed
-        if(flatVel.magnitude > moveSpeed)
-        {
-            Vector3 limitedVel = flatVel.normalized * moveSpeed;
-            rb.velocity = new Vector3(limitedVel.x, rb.velocity.y, limitedVel.z);
-        }
-    }
+    
 }
